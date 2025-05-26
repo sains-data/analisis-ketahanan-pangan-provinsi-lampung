@@ -1,0 +1,116 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.local
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Pytest cache
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Logs (keep directory, ignore contents)
+logs/*
+!logs/.gitkeep
+*.log
+
+# Data outputs (keep directory, ignore contents)
+data/*
+!data/.gitkeep
+!data/bronze/
+!data/silver/
+!data/gold/
+!data/yarn/
+
+data/bronze/*
+!data/bronze/.gitkeep
+data/silver/*
+!data/silver/.gitkeep
+data/gold/*
+!data/gold/.gitkeep
+data/yarn/*
+!data/yarn/.gitkeep
+
+# Hadoop/YARN temp and cache
+data/yarn/local/
+data/yarn/logs/
+
+# Airflow local state
+airflow.db
+airflow.cfg
+unittests.cfg
+
+# Superset local state
+superset_home/
+superset_data/
+
+# Docker
+*.pid
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Python package build artifacts
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Docker volumes and containers
+docker-compose.override.yml
+.env.docker
+
+# Big Data temp files
+*.parquet
+*.orc
+metastore_db/
+derby.log
+
+# Spark logs and checkpoints
+spark-warehouse/
+checkpoint/
+
+# Hive metastore
+metastore_db/
+
+# Project documentation that should be ignored
+TODO.md
+AGENT.md
+
+# Other
+*.swp
+*.swo
+.ropeproject

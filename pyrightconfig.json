@@ -1,0 +1,34 @@
+{
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "**/venv",
+    ".git",
+    "logs",
+    "data",
+    "output.txt"
+  ],
+  "include": [
+    "src",
+    "scripts",
+    "dags"
+  ],
+  "pythonPlatform": "Linux",
+  "pythonVersion": "3.13",
+  "reportMissingImports": "warning",
+  "reportMissingParameterType": "none",
+  "reportMissingTypeStubs": "none",
+  "reportPrivateUsage": "warning",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning",
+  "stubPath": "typings",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "venv": ".venv",
+  "venvPath": "."
+}

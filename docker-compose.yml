@@ -1,0 +1,345 @@
+# Lampung Food Security Big Data System
+# All secrets and configuration are loaded from .env file
+# Copy .env.example to .env and update values before running
+
+services:
+  # Hadoop Namenode
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    hostname: namenode
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      - CLUSTER_NAME=lampung-cluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+      - ./data:/data
+    networks:
+      - hadoop-network
+
+  # Hadoop Datanode 1
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    hostname: datanode1
+    ports:
+      - "9864:9864"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+    volumes:
+      - datanode1_data:/hadoop/dfs/data
+      - ./data:/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+
+  # Hadoop Datanode 2
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    hostname: datanode2
+    ports:
+      - "9865:9864"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+    volumes:
+      - datanode2_data:/hadoop/dfs/data
+      - ./data:/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+
+  # YARN ResourceManager
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    hostname: resourcemanager
+    ports:
+      - "8089:8088"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - YARN_CONF_yarn_resourcemanager_hostname=resourcemanager
+      - YARN_CONF_yarn_resourcemanager_bind_host=0.0.0.0
+      - YARN_CONF_yarn_nodemanager_bind_host=0.0.0.0
+      - YARN_CONF_yarn_timeline___service_enabled=false
+    volumes:
+      - ./data:/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - namenode
+
+  # YARN NodeManager 1
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager1
+    hostname: nodemanager1
+    ports:
+      - "8042:8042"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - YARN_CONF_yarn_resourcemanager_hostname=resourcemanager
+      - YARN_CONF_yarn_nodemanager_bind_host=0.0.0.0
+      - YARN_CONF_yarn_nodemanager_resource_memory___mb=2048
+      - YARN_CONF_yarn_nodemanager_resource_cpu___vcores=2
+      - YARN_CONF_yarn_nodemanager_aux___services=mapreduce_shuffle
+      - YARN_CONF_yarn_nodemanager_local___dirs=/data/yarn/local
+      - YARN_CONF_yarn_nodemanager_log___dirs=/data/yarn/logs
+    volumes:
+      - ./data:/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - resourcemanager
+
+  # YARN NodeManager 2
+  nodemanager2:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager2
+    hostname: nodemanager2
+    ports:
+      - "8043:8042"
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - YARN_CONF_yarn_resourcemanager_hostname=resourcemanager
+      - YARN_CONF_yarn_nodemanager_bind_host=0.0.0.0
+      - YARN_CONF_yarn_nodemanager_resource_memory___mb=2048
+      - YARN_CONF_yarn_nodemanager_resource_cpu___vcores=2
+      - YARN_CONF_yarn_nodemanager_aux___services=mapreduce_shuffle
+      - YARN_CONF_yarn_nodemanager_local___dirs=/data/yarn/local
+      - YARN_CONF_yarn_nodemanager_log___dirs=/data/yarn/logs
+    volumes:
+      - ./data:/data
+    networks:
+      - hadoop-network
+    depends_on:
+      - resourcemanager
+
+  # Hive Metastore Database
+  postgres:
+    image: postgres:13
+    container_name: hive-metastore-db
+    environment:
+      POSTGRES_DB: ${METASTORE_DB_NAME:-metastore}
+      POSTGRES_USER: ${METASTORE_DB_USER:-hive}
+      POSTGRES_PASSWORD: ${METASTORE_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    networks:
+      - hadoop-network
+
+  # Hive Metastore
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode1:9864 postgres:5432"
+      CORE_CONF_fs_defaultFS: "hdfs://namenode:9000"
+    env_file:
+      - ./configs/hive/hive.env
+    ports:
+      - "9083:9083"
+    volumes:
+      - ./data:/data
+      - ./configs/hive/hive-site.xml:/opt/hive/conf/hive-site.xml
+    networks:
+      - hadoop-network
+    depends_on:
+      - postgres
+      - namenode
+
+  # HiveServer2
+  hiveserver2:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hiveserver2
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://postgres/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+      CORE_CONF_fs_defaultFS: "hdfs://namenode:9000"
+    env_file:
+      - ./configs/hive/hive.env
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    volumes:
+      - ./data:/data
+      - ./configs/hive/hive-site.xml:/opt/hive/conf/hive-site.xml
+    networks:
+      - hadoop-network
+    depends_on:
+      - hive-metastore
+
+  # Spark Master
+  spark-master:
+    image: bde2020/spark-master:3.3.0-hadoop3.3
+    container_name: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+      - ./configs/hive/hive-site.xml:/spark/conf/hive-site.xml
+    networks:
+      - hadoop-network
+
+  # Spark Worker 1
+  spark-worker1:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark-worker1
+    ports:
+      - "8081:8081"
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+      - ./configs/hive/hive-site.xml:/spark/conf/hive-site.xml
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+
+  # Spark Worker 2
+  spark-worker2:
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
+    container_name: spark-worker2
+    ports:
+      - "8082:8081"
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    volumes:
+      - ./data:/data
+      - ./scripts:/scripts
+      - ./configs/hive/hive-site.xml:/spark/conf/hive-site.xml
+    networks:
+      - hadoop-network
+    depends_on:
+      - spark-master
+
+  # Apache Airflow Database
+  airflow-postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_DB: ${AIRFLOW_DB_NAME:-airflow}
+      POSTGRES_USER: ${AIRFLOW_DB_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - hadoop-network
+
+  # Airflow Webserver
+  airflow-webserver:
+    image: apache/airflow:2.7.0
+    container_name: airflow-webserver
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create --username ${AIRFLOW_ADMIN_USER} --firstname Admin --lastname User --role Admin --email admin@admin.com --password ${AIRFLOW_ADMIN_PASSWORD} &&
+      airflow webserver
+      "
+    ports:
+      - "8085:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD}@airflow-postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./scripts:/opt/airflow/scripts
+      - ./data:/data
+    user: "50000:0"
+    networks:
+      - hadoop-network
+    depends_on:
+      - airflow-postgres
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    image: apache/airflow:2.7.0
+    container_name: airflow-scheduler
+    command: airflow scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD}@airflow-postgres:5432/${AIRFLOW_DB_NAME:-airflow}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./scripts:/opt/airflow/scripts
+      - ./data:/data
+    user: "50000:0"
+    networks:
+      - hadoop-network
+    depends_on:
+      - airflow-postgres
+      - airflow-webserver
+
+  # Apache Superset
+  superset:
+    image: apache/superset:2.1.0
+    container_name: superset
+    ports:
+      - "8088:8088"
+    volumes:
+      - superset_data:/app/superset_home
+    networks:
+      - hadoop-network
+    command: >
+      bash -c "
+      superset fab create-admin --username ${SUPERSET_ADMIN_USER} --firstname Admin --lastname User --email admin@superset.com --password ${SUPERSET_ADMIN_PASSWORD} || true &&
+      superset db upgrade &&
+      superset init &&
+      superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+      "
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+
+volumes:
+  namenode_data:
+  datanode1_data:
+  datanode2_data:
+  postgres_data:
+  airflow_postgres_data:
+  superset_data:
+
+networks:
+  hadoop-network:
+    driver: bridge

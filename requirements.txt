@@ -1,0 +1,81 @@
+# Core Big Data Processing
+pyspark==3.5.0
+findspark==2.0.1
+
+# Data Processing and Analysis
+pandas==2.1.4
+numpy==1.24.4
+pyarrow==14.0.2
+
+# Configuration and Environment Management
+python-dotenv==1.0.0
+configparser==6.0.0
+pyyaml==6.0.1
+
+# Data Quality and Validation
+great-expectations==0.18.8
+pandera==0.17.2
+
+# Database Connectivity
+sqlalchemy==2.0.25
+pymysql==1.1.0
+psycopg2-binary==2.9.9
+
+# HTTP and API
+requests==2.31.0
+urllib3==2.1.0
+
+# File and Path Operations
+pathlib2==2.3.7
+click==8.1.7
+
+# Date and Time Processing
+python-dateutil==2.8.2
+pytz==2023.4
+
+# Logging and Monitoring
+structlog==23.2.0
+colorlog==6.8.2
+
+# Testing Framework
+pytest==7.4.4
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Code Quality and Formatting
+black==23.12.1
+flake8==7.0.0
+isort==5.13.2
+mypy==1.8.0
+
+# Development Tools
+ipython==8.18.1
+jupyter==1.0.0
+notebook==7.0.6
+
+# Visualization (for data exploration)
+matplotlib==3.8.2
+seaborn==0.13.0
+plotly==5.18.0
+
+# Utilities
+tqdm==4.66.1
+rich==13.7.0
+tabulate==0.9.0
+
+# Airflow (if running locally)
+apache-airflow==2.8.1
+apache-airflow-providers-apache-spark==4.6.0
+apache-airflow-providers-apache-hive==6.1.5
+
+# Performance and Memory
+memory-profiler==0.61.0
+psutil==5.9.7
+
+# JSON and Data Serialization
+orjson==3.9.10
+msgpack==1.0.7
+
+# Retry and Error Handling
+tenacity==8.2.3
+backoff==2.2.1
