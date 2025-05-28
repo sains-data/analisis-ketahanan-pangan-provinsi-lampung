@@ -41,7 +41,39 @@ HIVE_CONFIG = {
 
 # Data Schema Configuration
 DATA_SCHEMAS = {
+    "source_schemas": {
+        # Raw input file schemas (before any transformation)
+        "cuaca.csv": ["TANGGAL", "suhu", "curah_hujan"],
+        "harga_pangan.csv": ["komoditas", "tanggal", "harga_pangan"],
+        "ikp.csv": ["kabupaten_kota", "tahun", "skor_ikp", "kategori_ikp"],
+        "konsumsi_pangan.csv": [
+            "Tahun",
+            "Kabupaten_Kota",
+            "Komoditas",
+            "Konsumsi Pangan",
+        ],
+        "produksi_pangan.csv": [
+            "kabupaten_kota",
+            "komoditas",
+            "produksi",
+            "luas_panen",
+            "produktivitas",
+            "tahun",
+        ],
+        "sosial_ekonomi.csv": [
+            "Kabupaten/Kota",
+            "Tahun",
+            "Jumlah_Penduduk",
+            "Persentase_miskin",
+            "pengeluaran_per_kapita",
+        ],
+    },
     "bronze": {
+        # Bronze layer stores raw data as-is (matches source schemas)
+        "cuaca": ["TANGGAL", "suhu", "curah_hujan"],
+        "harga_pangan": ["komoditas", "tanggal", "harga_pangan"],
+        "ikp": ["kabupaten_kota", "tahun", "skor_ikp", "kategori_ikp"],
+        "konsumsi_pangan": ["Tahun", "Kabupaten_Kota", "Komoditas", "Konsumsi Pangan"],
         "produksi_pangan": [
             "kabupaten_kota",
             "komoditas",
@@ -50,25 +82,36 @@ DATA_SCHEMAS = {
             "produktivitas",
             "tahun",
         ],
-        "harga_pangan": [
-            "kabupaten_kota",
-            "komoditas",
-            "harga_produsen",
-            "harga_konsumen",
-            "tahun",
+        "sosial_ekonomi": [
+            "Kabupaten/Kota",
+            "Tahun",
+            "Jumlah_Penduduk",
+            "Persentase_miskin",
+            "pengeluaran_per_kapita",
         ],
+    },
+    "silver": {
+        # Silver layer schemas (after cleaning and transformation)
         "cuaca": [
             "kabupaten_kota",
             "curah_hujan",
             "suhu_rata_rata",
             "kelembaban",
             "tahun",
+            "tanggal",
         ],
-        "sosial_ekonomi": [
+        "harga_pangan": [
             "kabupaten_kota",
-            "jumlah_penduduk",
-            "tingkat_kemiskinan",
-            "ipkm",
+            "komoditas",
+            "harga_produsen",
+            "harga_konsumen",
+            "tahun",
+            "tanggal",
+        ],
+        "ikp": [
+            "kabupaten_kota",
+            "skor_ikp",
+            "kategori_ikp",
             "tahun",
         ],
         "konsumsi_pangan": [
@@ -77,8 +120,56 @@ DATA_SCHEMAS = {
             "konsumsi_per_kapita",
             "tahun",
         ],
-        "ikp": ["kabupaten_kota", "skor_ikp", "kategori_ikp", "tahun"],
-    }
+        "produksi_pangan": [
+            "kabupaten_kota",
+            "komoditas",
+            "produksi",
+            "luas_panen",
+            "produktivitas",
+            "produktivitas_per_hatahun",
+        ],
+        "sosial_ekonomi": [
+            "kabupaten_kota",
+            "jumlah_penduduk",
+            "tingkat_kemiskinan",
+            "ipkm",
+            "tahun",
+        ],
+    },
+    "gold": {
+        "ketahanan_pangan_enriched": [
+            "kabupaten_kota",
+            "total_produksi",
+            "avg_produktivitas",
+            "total_luas_panen",
+            "jenis_komoditas",
+            "avg_harga_produsen",
+            "avg_harga_konsumen",
+            "avg_curah_hujan",
+            "avg_suhu",
+            "jumlah_penduduk",
+            "persentase_miskin",
+            "pengeluaran_per_kapita",
+            "total_konsumsi_per_kapita",
+            "skor_ikp",
+            "kategori_ikp",
+            "produksi_per_kapita",
+            "skor_ketersediaan",
+            "kategori_ketahanan",
+            "tahun",
+        ],
+        "ketahanan_pangan_kab": [
+            "kabupaten_kota",
+            "total_produksi",
+            "avg_produktivitas",
+            "total_luas_panen",
+            "jenis_komoditas",
+            "produksi_per_kapita",
+            "skor_ketersediaan",
+            "kategori_ketahanan",
+            "tahun",
+        ],
+    },
 }
 
 # File Processing Configuration
@@ -111,7 +202,7 @@ FILE_SPECIFIC_CONFIG = {
             "ignoreLeadingWhiteSpace": "true",
             "ignoreTrailingWhiteSpace": "true",
             "mode": "PERMISSIVE",  # Handle malformed rows
-            "columnNameOfCorruptRecord": "_corrupt_record"
+            "columnNameOfCorruptRecord": "_corrupt_record",
         },
     },
     "cuaca.csv": {
@@ -123,7 +214,7 @@ FILE_SPECIFIC_CONFIG = {
         },
     },
     "sosial_ekonomi.csv": {
-        "separator": ";", 
+        "separator": ";",
         "column_mapping": {},
         "csv_options": {},
     },
@@ -136,7 +227,7 @@ FILE_SPECIFIC_CONFIG = {
         "separator": ";",
         "column_mapping": {
             "Nama Kabupaten": "kabupaten_kota",
-            "KELOMPOK IKP": "kategori_ikp"
+            "KELOMPOK IKP": "kategori_ikp",
         },
         "csv_options": {
             "quote": '"',
@@ -220,7 +311,7 @@ AIRFLOW_CONFIG = {
 
 # Superset Configuration
 SUPERSET_CONFIG = {
-    "host": "superset", 
+    "host": "superset",
     "port": 8088,
     "admin_user": "admin",
     "database_uri": "hive://hive@hiveserver2:10000/gold",
