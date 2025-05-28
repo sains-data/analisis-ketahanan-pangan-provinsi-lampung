@@ -126,7 +126,8 @@ DATA_SCHEMAS = {
             "produksi",
             "luas_panen",
             "produktivitas",
-            "produktivitas_per_hatahun",
+            "produktivitas_per_ha",
+            "tahun",
         ],
         "sosial_ekonomi": [
             "kabupaten_kota",
