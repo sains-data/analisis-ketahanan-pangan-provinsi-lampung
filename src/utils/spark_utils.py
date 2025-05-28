@@ -12,7 +12,7 @@ from pyspark.sql.types import StructType
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame
 
-from ..config.settings import HDFS_CONFIG, SPARK_CONFIG
+from config.settings import HDFS_CONFIG, SPARK_CONFIG, FILE_SPECIFIC_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +36,17 @@ class SparkSessionManager:
         Returns:
             SparkSession: Configured Spark session
         """
-        if cls._instance is None or (
-            cls._instance is not None and cls._instance._jsc.sc().isStopped()
-        ):
+        if cls._instance is None:
             cls._instance = cls._create_session(app_name, configs)
+        else:
+            # Check if session is stopped using safer approach
+            try:
+                # Try to access the SparkContext to verify session is alive
+                _ = cls._instance.sparkContext.getConf()
+            except Exception:
+                # If we can't access the session, it's likely stopped or invalid
+                logger.info("Existing Spark session appears to be stopped, creating new session")
+                cls._instance = cls._create_session(app_name, configs)
 
         return cls._instance
 
@@ -86,10 +93,15 @@ class SparkSessionManager:
     @classmethod
     def stop_session(cls):
         """Stop the current Spark session"""
-        if cls._instance is not None and not cls._instance._jsc.sc().isStopped():
-            logger.info("Stopping Spark session")
-            cls._instance.stop()
-            cls._instance = None
+        if cls._instance is not None:
+            try:
+                # Try to stop the session safely
+                logger.info("Stopping Spark session")
+                cls._instance.stop()
+            except Exception as e:
+                logger.warning(f"Error while stopping Spark session: {e}")
+            finally:
+                cls._instance = None
 
 
 def create_spark_session(
@@ -155,6 +167,87 @@ def read_csv_from_hdfs(
 
     except Exception as e:
         logger.error(f"Error reading CSV from {file_path}: {str(e)}")
+        raise
+
+
+def read_csv_with_file_config(
+    spark: SparkSession,
+    file_path: str,
+    filename: str,
+    schema: Optional[StructType] = None,
+    header: bool = True,
+    infer_schema: bool = True,
+) -> "DataFrame":
+    """
+    Read CSV file from HDFS using file-specific configuration
+    
+    Args:
+        spark: Spark session
+        file_path: HDFS file path
+        filename: Name of the file (used to look up specific config)
+        schema: Optional schema definition
+        header: Whether CSV has header
+        infer_schema: Whether to infer schema
+        
+    Returns:
+        DataFrame: Loaded DataFrame with column mapping applied
+    """
+    try:
+        # Get file-specific configuration
+        file_config = FILE_SPECIFIC_CONFIG.get(filename, {})
+        separator = file_config.get("separator", ",")
+        column_mapping = file_config.get("column_mapping", {})
+        csv_options = file_config.get("csv_options", {})
+        
+        logger.info(f"Using separator '{separator}' for file {filename}")
+        if column_mapping:
+            logger.info(f"Applying column mapping: {column_mapping}")
+        if csv_options:
+            logger.info(f"Applying CSV options: {csv_options}")
+        
+        # Read CSV with file-specific configuration
+        full_path = f"{HDFS_CONFIG['base_url']}{file_path}"
+        logger.info(f"Reading CSV from: {full_path}")
+
+        reader = (
+            spark.read.format("csv")
+            .option("header", header)
+            .option("sep", separator)
+            .option("encoding", "utf-8")
+        )
+        
+        # Apply file-specific CSV options
+        for option_key, option_value in csv_options.items():
+            reader = reader.option(option_key, option_value)
+        
+        # Apply default options if not overridden
+        if "multiline" not in csv_options:
+            reader = reader.option("multiline", "true")
+        if "escape" not in csv_options:
+            reader = reader.option("escape", '"')
+        if "quote" not in csv_options:
+            reader = reader.option("quote", '"')
+
+        if schema:
+            reader = reader.schema(schema)
+        elif infer_schema:
+            reader = reader.option("inferSchema", "true")
+
+        df = reader.load(full_path)
+        logger.info(f"Successfully loaded CSV with {df.count()} rows")
+        
+        # Apply column mapping if specified
+        for old_name, new_name in column_mapping.items():
+            if old_name in df.columns:
+                df = df.withColumnRenamed(old_name, new_name)
+                logger.info(f"Renamed column '{old_name}' to '{new_name}'")
+            else:
+                logger.warning(f"Column '{old_name}' not found for mapping to '{new_name}'")
+        
+        return df
+        
+    except Exception as e:
+        logger.error(f"Error reading CSV with file config from {file_path}: {str(e)}")
         raise
 
 

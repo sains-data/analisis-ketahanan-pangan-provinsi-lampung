@@ -107,7 +107,6 @@ checkpoint/
 metastore_db/
 
 # Project documentation that should be ignored
-TODO.md
 AGENT.md
 
 # Other

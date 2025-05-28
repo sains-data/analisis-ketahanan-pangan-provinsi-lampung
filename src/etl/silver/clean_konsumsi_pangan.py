@@ -1,9 +1,9 @@
 """
-Silver Layer ETL: Production Data Cleaning Script
+Silver Layer ETL: Food Consumption Data Cleaning Script
 
-This script processes production data from the bronze layer, performs cleaning
+This script processes food consumption data from the bronze layer, performs cleaning
 and validation, and writes the cleaned data to the silver layer with proper
-partitioning.
+partitioning using functional programming approach.
 """
 
 import logging
@@ -13,23 +13,16 @@ from pathlib import Path
 # Add src to Python path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from pyspark.sql.functions import col
-from pyspark.sql.functions import round as spark_round
+from pyspark.sql.functions import col, regexp_replace, trim
 from pyspark.sql.types import DoubleType, IntegerType
 
-from config.settings import FILE_CONFIG, HDFS_CONFIG, HIVE_CONFIG, QUALITY_CONFIG
-from utils.data_quality import (
-    calculate_data_quality_score,
-    clean_invalid_markers,
-    generate_quality_report,
-    standardize_region_names,
-    validate_bronze_data,
-)
+from config.settings import FILE_CONFIG, HDFS_CONFIG, HIVE_CONFIG
+from utils.data_quality import clean_invalid_markers, standardize_region_names
 from utils.spark_utils import (
     SparkSessionManager,
     clean_text_column,
     create_hive_table,
-    read_csv_with_file_config,
+    read_csv_from_hdfs,
     validate_data_quality,
     write_parquet_to_hdfs,
 )
@@ -42,18 +35,17 @@ logger = logging.getLogger(__name__)
 
 
 def load_bronze_data(spark):
-    """Load production data from bronze layer"""
-    logger.info("Loading production data from bronze layer")
-
-    input_path = f"{str(HDFS_CONFIG['data_paths']['bronze'])}/produksi_pangan.csv"
-    filename = "produksi_pangan.csv"
-
-    df = read_csv_with_file_config(
+    """Load food consumption data from bronze layer"""
+    logger.info("Loading food consumption data from bronze layer")
+    
+    input_path = f"{str(HDFS_CONFIG['data_paths']['bronze'])}/konsumsi_pangan.csv"
+    
+    df = read_csv_from_hdfs(
         spark,
         input_path,
-        filename,
+        separator=";",  # konsumsi_pangan.csv uses semicolon separator
         header=bool(FILE_CONFIG["header"]),
-        infer_schema=bool(FILE_CONFIG["infer_schema"]),
+        infer_schema=False,  # We'll handle schema ourselves
     )
 
     logger.info(f"Loaded {df.count()} rows from bronze layer")
@@ -64,47 +56,53 @@ def validate_input_data(df):
     """Validate input data quality"""
     logger.info("Validating input data quality")
 
-    validation_results = validate_bronze_data(df, "produksi_pangan")
-    quality_score = calculate_data_quality_score(validation_results)
+    expected_columns = ["Tahun", "Kabupaten_Kota", "Komoditas", "Konsumsi Pangan"]
+    missing_columns = set(expected_columns) - set(df.columns)
+    
+    if missing_columns:
+        logger.error(f"Missing expected columns: {missing_columns}")
+        return False
 
-    logger.info(f"Input data quality score: {quality_score}/100")
-
-    if quality_score < 60:
-        logger.warning("Input data quality is below acceptable threshold")
-        print(generate_quality_report(validation_results))
-
-    return validation_results
+    logger.info("Input data structure validation passed")
+    return True
 
 
-def convert_data_types(df):
-    """Convert columns to appropriate data types"""
+def normalize_column_names(df):
+    """Normalize column names to match expected schema"""
+    return (df
+            .withColumnRenamed("Tahun", "tahun")
+            .withColumnRenamed("Kabupaten_Kota", "kabupaten_kota")
+            .withColumnRenamed("Komoditas", "komoditas")
+            .withColumnRenamed("Konsumsi Pangan", "konsumsi_per_kapita"))
+
+
+def fix_decimal_commas(df):
+    """Convert decimal commas to decimal points"""
+    return df.withColumn(
+        "konsumsi_per_kapita",
+        regexp_replace(col("konsumsi_per_kapita"), ",", ".")
+    )
+
+
+def clean_numeric_columns(df):
+    """Clean and convert numeric columns"""
     return (df
             .withColumn("tahun", col("tahun").cast(IntegerType()))
-            .withColumn("produksi", col("produksi").cast(DoubleType()))
-            .withColumn("luas_panen", col("luas_panen").cast(DoubleType()))
-            .withColumn("produktivitas", col("produktivitas").cast(DoubleType())))
-
-
-def calculate_derived_metrics(df):
-    """Calculate derived productivity metrics"""
-    return df.withColumn(
-        "produktivitas_per_ha",
-        spark_round(col("produksi") / col("luas_panen"), 4)
-    )
+            .withColumn("konsumsi_per_kapita", col("konsumsi_per_kapita").cast(DoubleType())))
 
 
 def filter_valid_records(df):
     """Filter out invalid records"""
     return df.filter(
-        col("produksi").isNotNull()
-        & (col("produksi") > 0)
-        & col("luas_panen").isNotNull()
-        & (col("luas_panen") > 0)
-        & col("tahun").isNotNull()
+        col("tahun").isNotNull()
         & col("kabupaten_kota").isNotNull()
-        & (col("tahun") >= 2000)
+        & col("komoditas").isNotNull()
+        & col("konsumsi_per_kapita").isNotNull()
+        & (col("konsumsi_per_kapita") >= 0)
+        & (col("tahun") >= 2000) 
         & (col("tahun") <= 2030)
-        & (col("produksi") <= 1000000)  # Filter data entry errors
+        & (trim(col("kabupaten_kota")) != "")
+        & (trim(col("komoditas")) != "")
     )
 
 
@@ -114,16 +112,16 @@ def clean_and_transform(df):
 
     # Function composition pipeline
     df_cleaned = (df
+                  .transform(normalize_column_names)
                   .transform(clean_invalid_markers)
+                  .transform(fix_decimal_commas)
+                  .transform(clean_numeric_columns)
                   .transform(lambda df: standardize_region_names(df, "kabupaten_kota"))
-                  .transform(convert_data_types)
-                  .transform(filter_valid_records)
-                  .transform(calculate_derived_metrics)
                   .transform(lambda df: clean_text_column(df, "kabupaten_kota"))
                   .transform(lambda df: clean_text_column(df, "komoditas"))
+                  .transform(filter_valid_records)
                   .dropDuplicates()
-                  .select("kabupaten_kota", "komoditas", "produksi", "luas_panen",
-                         "produktivitas", "produktivitas_per_ha", "tahun"))
+                  .select("kabupaten_kota", "komoditas", "konsumsi_per_kapita", "tahun"))
 
     logger.info(f"Cleaning completed. Rows after cleaning: {df_cleaned.count()}")
     return df_cleaned
@@ -133,22 +131,23 @@ def validate_output_data(df):
     """Validate cleaned data quality"""
     logger.info("Validating cleaned data quality")
 
-    required_columns = list(QUALITY_CONFIG["required_columns"].get("produksi", []))
-    validation_passed = validate_data_quality(df, required_columns, min_rows=100)
+    required_columns = ["kabupaten_kota", "komoditas", "konsumsi_per_kapita", "tahun"]
+    validation_passed = validate_data_quality(df, required_columns, min_rows=50)
 
     if not validation_passed:
         raise ValueError("Output data validation failed")
 
-    # Additional business rule validations
-    invalid_productivity = df.filter(
-        (col("produktivitas_per_ha") <= 0)
-        | (col("produktivitas_per_ha") > 100)  # Extremely high productivity threshold
-    ).count()
+    # Log data quality metrics
+    zero_consumption = df.filter(col("konsumsi_per_kapita") == 0).count()
+    high_consumption = df.filter(col("konsumsi_per_kapita") > 500).count()
+    
+    logger.info(f"Records with zero consumption: {zero_consumption}")
+    logger.info(f"Records with consumption > 500 kg/capita/year: {high_consumption}")
 
-    if invalid_productivity > 0:
-        logger.warning(
-            f"Found {invalid_productivity} records with suspicious productivity values"
-        )
+    # Check for extreme values
+    extreme_consumption = df.filter(col("konsumsi_per_kapita") > 1000).count()
+    if extreme_consumption > 0:
+        logger.warning(f"Found {extreme_consumption} records with extremely high consumption > 1000")
 
     logger.info("Output data validation passed")
     return True
@@ -156,10 +155,10 @@ def validate_output_data(df):
 
 def save_to_silver(spark, df):
     """Save cleaned data to silver layer"""
-    output_path = f"{str(HDFS_CONFIG['data_paths']['silver'])}/produksi_pangan"
+    output_path = f"{str(HDFS_CONFIG['data_paths']['silver'])}/konsumsi_pangan"
     database = str(HIVE_CONFIG["databases"]["silver"])
-    table_name = "produksi_pangan"
-
+    table_name = "konsumsi_pangan"
+    
     logger.info(f"Saving cleaned data to silver layer: {output_path}")
 
     # Write parquet files partitioned by year
@@ -174,10 +173,7 @@ def save_to_silver(spark, df):
     columns = {
         "kabupaten_kota": "STRING",
         "komoditas": "STRING",
-        "produksi": "DOUBLE",
-        "luas_panen": "DOUBLE",
-        "produktivitas": "DOUBLE",
-        "produktivitas_per_ha": "DOUBLE",
+        "konsumsi_per_kapita": "DOUBLE",
     }
 
     partition_columns = {"tahun": "INT"}
@@ -200,10 +196,10 @@ def run_pipeline():
     """Execute the complete cleaning pipeline using functional composition"""
     spark = None
     try:
-        logger.info("Starting production data cleaning pipeline")
+        logger.info("Starting food consumption data cleaning pipeline")
 
         # Initialize Spark session
-        spark = SparkSessionManager.get_session("CleanProduksiData")
+        spark = SparkSessionManager.get_session("CleanKonsumsiPanganData")
 
         # Execute pipeline
         df_bronze = load_bronze_data(spark)
@@ -212,7 +208,7 @@ def run_pipeline():
         validate_output_data(df_silver)
         save_to_silver(spark, df_silver)
 
-        logger.info("Production data cleaning pipeline completed successfully")
+        logger.info("Food consumption data cleaning pipeline completed successfully")
 
         # Print summary statistics
         input_count = df_bronze.count()

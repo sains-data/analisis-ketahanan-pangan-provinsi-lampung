@@ -38,13 +38,9 @@ dependencies = [
     "numpy>=1.24.0",
     "pyarrow",
     "python-dotenv",
-    "configparser",
     "pyyaml",
-    "great-expectations",
-    "pandera",
     "sqlalchemy>=1.4.28,<2.0",  # Keep constraint for Airflow compatibility
     "requests",
-    "pathlib2",
     "click",
     "python-dateutil",
     "pytz",
@@ -74,7 +70,6 @@ airflow = [
     "apache-airflow-providers-apache-hive",
 ]
 database = [
-    "pymysql",
     "psycopg2-binary",
 ]
 jupyter = [
@@ -100,8 +95,7 @@ Documentation = "https://github.com/itera/lampung-food-security/docs"
 Repository = "https://github.com/itera/lampung-food-security.git"
 "Bug Tracker" = "https://github.com/itera/lampung-food-security/issues"
 
-[project.scripts]
-lampung-foodsec = "src.cli:main"
+
 
 [tool.setuptools.packages.find]
 where = ["."]

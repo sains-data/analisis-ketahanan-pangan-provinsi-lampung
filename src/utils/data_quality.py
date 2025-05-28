@@ -12,7 +12,7 @@ from pyspark.sql.functions import max as spark_max
 from pyspark.sql.functions import min as spark_min
 from pyspark.sql.functions import percentile_approx, regexp_replace, stddev, trim, when
 
-from ..config.settings import DATA_SCHEMAS, QUALITY_CONFIG
+from config.settings import DATA_SCHEMAS, QUALITY_CONFIG
 
 # Type imports removed as they're unused in this module
 
