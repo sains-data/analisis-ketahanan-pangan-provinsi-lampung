@@ -83,13 +83,67 @@ DATA_SCHEMAS = {
 
 # File Processing Configuration
 FILE_CONFIG = {
-    "csv_separator": ",",
+    "csv_separator": ";",  # Default separator
     "encoding": "utf-8",
     "header": True,
     "infer_schema": True,
     "partition_column": "tahun",
     "output_format": "parquet",
     "write_mode": "overwrite",
+}
+
+# Per-file CSV Configuration for handling different file formats
+FILE_SPECIFIC_CONFIG = {
+    "produksi_pangan.csv": {
+        "separator": ";",
+        "column_mapping": {},  # No mapping needed - columns match expected schema
+        "csv_options": {},
+    },
+    "harga_pangan.csv": {
+        "separator": ",",
+        "column_mapping": {
+            "harga pangan": "harga_pangan"  # Map space to underscore
+        },
+        "csv_options": {
+            "multiline": "true",
+            "escape": '"',
+            "quote": '"',
+            "ignoreLeadingWhiteSpace": "true",
+            "ignoreTrailingWhiteSpace": "true",
+            "mode": "PERMISSIVE",  # Handle malformed rows
+            "columnNameOfCorruptRecord": "_corrupt_record"
+        },
+    },
+    "cuaca.csv": {
+        "separator": ";",
+        "column_mapping": {},
+        "csv_options": {
+            "nullValue": "-",  # Handle missing values marked as "-"
+            "emptyValue": "-",
+        },
+    },
+    "sosial_ekonomi.csv": {
+        "separator": ";", 
+        "column_mapping": {},
+        "csv_options": {},
+    },
+    "konsumsi_pangan.csv": {
+        "separator": ";",
+        "column_mapping": {},
+        "csv_options": {},
+    },
+    "ikp.csv": {
+        "separator": ";",
+        "column_mapping": {
+            "Nama Kabupaten": "kabupaten_kota",
+            "KELOMPOK IKP": "kategori_ikp"
+        },
+        "csv_options": {
+            "quote": '"',
+            "escape": '"',
+            "multiline": "true",
+        },
+    },
 }
 
 # Data Quality Configuration
